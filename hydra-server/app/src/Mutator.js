@@ -13,6 +13,79 @@ class Mutator {
     this.initialVector = [];
   }
 
+  generate () {
+    const glslTransforms = require('hydra-synth/src/glsl/glsl-functions.js')
+
+    let coordColorFuncs = glslTransforms.filter((t) => 
+      (t.type === 'coord' || t.type === 'color') 
+      && t.name !== 'a' 
+      && t.name !== 'r' 
+      && t.name !== 'b' 
+      && t.name !== 'g' 
+      && t.name !== 'sum')
+
+    let srcFuncs = glslTransforms.filter((t) => t.type === 'src' && t.name !== 'prev')
+    let sources = ['s0', 's1', 'o0']
+    let modulateFuncs = glslTransforms.filter((t) => (t.type === 'combine' || t.type === 'combineCoord') && t.name !== 'layer')
+    
+    let rnd = (a) => a[Math.floor(Math.random() * a.length)];
+
+    let empty = function () {
+      return '';
+    }
+    
+    let timeModRandom = function () {
+      return '() => time % ' + Math.ceil(Math.random() * 10)
+    }
+
+    let fftMulRandom = function () {
+      return '() => a.fft[0] * ' + Math.ceil(Math.random() * 10)
+    }
+    
+    let gen = function (n, level) {
+      let c = '';
+      let src = rnd(srcFuncs).name;
+      if (src === 'src') {
+        c += ('src(' + rnd(sources) + ')')
+      } else {
+        // c += (src + '(' + timeModRandom() + ', ' + timeModRandom() + ', ' + timeModRandom() + ')')
+        c += (src + '(' + empty() + ')')
+      }
+      for (let i = 0; i < n; i++) {
+        if (Math.random() > 0.3 && level > 0) {
+          let m = rnd(modulateFuncs).name
+          c += ('.' + m + '(' + gen(n, level - 1) + ')')
+        } else {
+          var f = rnd(coordColorFuncs).name
+          c += ('.' + f + '(' + empty() + ')')
+          // c += ('.' + f + '(['+Math.ceil(Math.random() * 1)+', '+Math.ceil(Math.random() * 10)+'].ease(\'linear\'))')
+
+        }
+      }
+      return c
+    }
+
+    let text = this.editor.cm.getValue()
+    this.undoStack.push({ text, lastLitX: this.lastLitX })
+    let needToRun = true
+    let tryCounter = 5
+
+    // let regen = gen(5, 1) + '.out();'
+    // this.editor.cm.setValue(regen)
+
+
+    while (needToRun && tryCounter-- >= 0) {
+      let regen = 's0.initCam(); s1.initImage("https://upload.wikimedia.org/wikipedia/commons/2/25/Hydra-Foto.jpg"); ' 
+        + gen(2, 3) + '.out();'
+      this.editor.cm.setValue(regen)
+      repl.eval(regen, (code, error) => {
+        if (error) {
+          console.log('Eval error: ' + regen)
+        }
+        needToRun = error
+      })
+    }
+  }
 
   mutate(options) {
     // Get text from CodeMirror.

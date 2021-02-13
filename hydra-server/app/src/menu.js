@@ -116,7 +116,8 @@ class Menu {
   	if (evt.shiftKey) {
       this.editor.mutator.doUndo();
   	} else {
-      this.editor.mutator.mutate({reroll: false});
+      this.editor.mutator.generate();
+      this.formatCode();
     }
   }
 }
